@@ -12,10 +12,10 @@ import { join } from "path";
 if (!process.env.OPENROUTER_API_KEY) {
   // Try multiple paths to find the .env
   const possiblePaths = [
-    "/Users/david/agent/.env",
+    join(process.cwd(), ".env"),
+    join(process.cwd(), "../.env"),
     join(process.cwd(), "../../.env"),
     join(process.cwd(), "../../../.env"),
-    join(process.cwd(), "../../../../.env"),
   ];
 
   for (const envPath of possiblePaths) {
@@ -145,7 +145,7 @@ export async function generateImage(
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://github.com/dvdsgl/agent",
+      "HTTP-Referer": "https://github.com/anthropics/claude-code",
       "X-Title": "Claude Canvas Imagine",
     },
     body: JSON.stringify(body),
