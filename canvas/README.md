@@ -2,6 +2,30 @@
 
 Interactive terminal TUI components for Claude Code.
 
+## Quick Start: W&B Visualization
+
+Visualize W&B runs directly in your terminal (requires tmux):
+
+```bash
+cd canvas
+
+# Spawn wandb leet for your latest run
+bun run src/cli.ts leet ../wandb/latest-run
+
+# Capture the visualization output
+bun run src/cli.ts leet-capture
+
+# Navigate with keys (Tab, Up, Down, etc.)
+bun run src/cli.ts leet-keys Tab
+
+# Clean up when done
+bun run src/cli.ts leet-kill
+```
+
+See [WANDB_LEET_FEATURE.md](./WANDB_LEET_FEATURE.md) for full documentation.
+
+---
+
 ## Overview
 
 Canvas provides spawnable terminal displays (calendars, documents, flight booking) with real-time IPC communication. Claude can spawn these TUIs in tmux split panes and receive user selections.
