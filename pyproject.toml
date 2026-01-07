@@ -2,9 +2,9 @@
 name = "claude-canvas-wandb-test"
 version = "0.1.0"
 description = "Test utilities for Claude Canvas W&B integration"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
-    "wandb>=0.15.0",
+    "wandb>=0.23.1",
 ]
 
 [project.scripts]
