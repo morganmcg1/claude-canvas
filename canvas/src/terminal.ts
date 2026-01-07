@@ -1,5 +1,59 @@
 import { spawn, spawnSync } from "child_process";
 
+/**
+ * Auto-start tmux session and spawn canvas inside it
+ */
+async function autoStartTmux(kind: string, id: string, configJson?: string, options?: SpawnOptions): Promise<SpawnResult> {
+  const scriptDir = import.meta.dir.replace("/src", "");
+  const socketPath = options?.socketPath || `/tmp/canvas-${id}.sock`;
+
+  // Build the canvas command to run inside tmux
+  let canvasCmd = `cd "${scriptDir}" && bun run src/cli.ts show ${kind} --id ${id}`;
+  if (configJson) {
+    const configFile = `/tmp/canvas-config-${id}.json`;
+    await Bun.write(configFile, configJson);
+    canvasCmd += ` --config "$(cat ${configFile})"`;
+  }
+  canvasCmd += ` --socket ${socketPath}`;
+  if (options?.scenario) {
+    canvasCmd += ` --scenario ${options.scenario}`;
+  }
+
+  // Create a new tmux session with the canvas, then split for leet if wandb
+  const sessionName = `canvas-${id}`;
+
+  if (kind === "wandb" && configJson) {
+    const config = JSON.parse(configJson);
+    const runDir = config.runDir;
+    const leetArgs = config.leetArgs?.join(" ") || "";
+    const leetCmd = `wandb beta leet ${runDir} ${leetArgs}`.trim();
+
+    // Create session with canvas on left, leet on right
+    const tmuxScript = `
+      tmux new-session -d -s ${sessionName} -x 200 -y 50 '${canvasCmd}' && \
+      tmux split-window -h -t ${sessionName} -p 60 '${leetCmd}' && \
+      tmux select-pane -t ${sessionName}:0.0 && \
+      tmux attach-session -t ${sessionName}
+    `.trim().replace(/\n\s*/g, " ");
+
+    // Open in a new Terminal window on macOS
+    if (process.platform === "darwin") {
+      const script = `tell application "Terminal"
+        do script "${tmuxScript.replace(/"/g, '\\"')}"
+        activate
+      end tell`;
+
+      Bun.spawn(["osascript", "-e", script], {
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+
+      return { method: "tmux-auto" };
+    }
+  }
+
+  throw new Error("Auto-tmux only supported on macOS for wandb canvas");
+}
+
 export interface TerminalEnvironment {
   inTmux: boolean;
   summary: string;
@@ -28,6 +82,11 @@ export async function spawnCanvas(
   options?: SpawnOptions
 ): Promise<SpawnResult> {
   const env = detectTerminal();
+
+  // For wandb canvas without tmux, auto-start tmux with the full canvas experience
+  if (!env.inTmux && kind === "wandb" && configJson) {
+    return autoStartTmux(kind, id, configJson, options);
+  }
 
   if (!env.inTmux) {
     throw new Error("Canvas requires tmux. Please run inside a tmux session.");
