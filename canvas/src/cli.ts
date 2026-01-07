@@ -212,4 +212,94 @@ program
     }
   });
 
+program
+  .command("wandb-viewstate <id>")
+  .description("Get the current view state from a running wandb canvas")
+  .action(async (id: string) => {
+    const { getSocketPath } = await import("./ipc/types");
+    const socketPath = getSocketPath(id);
+
+    try {
+      let resolved = false;
+      const result = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            reject(new Error("Timeout waiting for response"));
+          }
+        }, 5000);
+
+        Bun.connect({
+          unix: socketPath,
+          socket: {
+            data(socket, data) {
+              if (resolved) return;
+              clearTimeout(timeout);
+              resolved = true;
+              const response = JSON.parse(data.toString().trim());
+              if (response.type === "viewState") {
+                resolve(JSON.stringify(response.data, null, 2));
+              } else {
+                resolve(JSON.stringify({ error: "Unexpected response type", type: response.type }));
+              }
+              socket.end();
+            },
+            open(socket) {
+              const msg = JSON.stringify({ type: "getViewState" });
+              socket.write(msg + "\n");
+            },
+            close() {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                resolve(JSON.stringify({ error: "Connection closed" }));
+              }
+            },
+            error(socket, error) {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                reject(error);
+              }
+            },
+          },
+        });
+      });
+      console.log(result);
+    } catch (err) {
+      console.error(`Failed to get view state from wandb canvas '${id}':`, err);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("wandb-sendkeys <id> <keys>")
+  .description("Send keystrokes to a running wandb canvas (forwarded to Leet)")
+  .action(async (id: string, keys: string) => {
+    const { getSocketPath } = await import("./ipc/types");
+    const socketPath = getSocketPath(id);
+
+    try {
+      await Bun.connect({
+        unix: socketPath,
+        socket: {
+          data() {},
+          open(socket) {
+            const msg = JSON.stringify({ type: "sendKeys", keys });
+            socket.write(msg + "\n");
+            socket.end();
+          },
+          close() {},
+          error(socket, error) {
+            console.error("Socket error:", error);
+          },
+        },
+      });
+      console.log(`Sent keys '${keys}' to wandb canvas '${id}'`);
+    } catch (err) {
+      console.error(`Failed to send keys to wandb canvas '${id}':`, err);
+      process.exit(1);
+    }
+  });
+
 program.parse();

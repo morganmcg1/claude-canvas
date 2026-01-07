@@ -144,3 +144,146 @@ async function spawnTmux(command: string): Promise<boolean> {
   return createNewPane(command);
 }
 
+// ============================================
+// Leet Pane Management (for W&B Canvas)
+// ============================================
+
+const LEET_PANE_FILE = "/tmp/claude-leet-pane-id";
+
+export async function getLeetPaneId(): Promise<string | null> {
+  try {
+    const file = Bun.file(LEET_PANE_FILE);
+    if (await file.exists()) {
+      const paneId = (await file.text()).trim();
+      if (!paneId) return null;
+      // Verify the pane still exists
+      const result = spawnSync("tmux", ["display-message", "-t", paneId, "-p", "#{pane_id}"]);
+      const output = result.stdout?.toString().trim();
+      if (result.status === 0 && output === paneId) {
+        return paneId;
+      }
+      await Bun.write(LEET_PANE_FILE, "");
+    }
+  } catch {
+    // Ignore errors
+  }
+  return null;
+}
+
+async function saveLeetPaneId(paneId: string): Promise<void> {
+  await Bun.write(LEET_PANE_FILE, paneId);
+}
+
+export interface SpawnLeetOptions {
+  runDir: string;
+  leetArgs?: string[];
+}
+
+/**
+ * Spawn wandb leet in a new tmux pane
+ * Returns the pane ID if successful
+ */
+export async function spawnLeetPane(options: SpawnLeetOptions): Promise<string | null> {
+  const env = detectTerminal();
+  if (!env.inTmux) {
+    throw new Error("Leet requires tmux. Please run inside a tmux session.");
+  }
+
+  // Check for existing Leet pane
+  const existingPaneId = await getLeetPaneId();
+  if (existingPaneId) {
+    // Kill existing pane first
+    await killLeetPane();
+  }
+
+  // Build the leet command
+  const leetArgs = options.leetArgs?.join(" ") || "";
+  const command = `wandb beta leet ${options.runDir} ${leetArgs}`.trim();
+
+  return new Promise((resolve) => {
+    // Split vertically, Leet gets right side (50%)
+    const args = ["split-window", "-h", "-p", "50", "-P", "-F", "#{pane_id}", command];
+    const proc = spawn("tmux", args);
+    let paneId = "";
+    proc.stdout?.on("data", (data) => {
+      paneId += data.toString();
+    });
+    proc.on("close", async (code) => {
+      if (code === 0 && paneId.trim()) {
+        await saveLeetPaneId(paneId.trim());
+        resolve(paneId.trim());
+      } else {
+        resolve(null);
+      }
+    });
+    proc.on("error", () => resolve(null));
+  });
+}
+
+/**
+ * Capture the current output of the Leet pane
+ * Returns the terminal content with ANSI escape codes
+ */
+export async function captureLeetPane(): Promise<string | null> {
+  const paneId = await getLeetPaneId();
+  if (!paneId) return null;
+
+  return new Promise((resolve) => {
+    // -p prints to stdout, -e includes escape sequences (colors)
+    const args = ["capture-pane", "-p", "-e", "-t", paneId];
+    const proc = spawn("tmux", args);
+    let output = "";
+    proc.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+    proc.on("close", (code) => {
+      resolve(code === 0 ? output : null);
+    });
+    proc.on("error", () => resolve(null));
+  });
+}
+
+/**
+ * Send keystrokes to the Leet pane for navigation
+ */
+export async function sendKeysToLeet(keys: string): Promise<boolean> {
+  const paneId = await getLeetPaneId();
+  if (!paneId) return false;
+
+  return new Promise((resolve) => {
+    const args = ["send-keys", "-t", paneId, keys];
+    const proc = spawn("tmux", args);
+    proc.on("close", (code) => resolve(code === 0));
+    proc.on("error", () => resolve(false));
+  });
+}
+
+/**
+ * Kill the Leet pane if it exists
+ */
+export async function killLeetPane(): Promise<boolean> {
+  const paneId = await getLeetPaneId();
+  if (!paneId) return true;
+
+  return new Promise((resolve) => {
+    const args = ["kill-pane", "-t", paneId];
+    const proc = spawn("tmux", args);
+    proc.on("close", async (code) => {
+      await Bun.write(LEET_PANE_FILE, "");
+      resolve(code === 0);
+    });
+    proc.on("error", async () => {
+      await Bun.write(LEET_PANE_FILE, "");
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Check if Leet pane is still running
+ */
+export async function isLeetPaneAlive(): Promise<boolean> {
+  const paneId = await getLeetPaneId();
+  return paneId !== null;
+}
+
