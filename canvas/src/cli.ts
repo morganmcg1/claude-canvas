@@ -302,4 +302,95 @@ program
     }
   });
 
+// ============================================
+// Direct Leet Commands (simpler approach)
+// ============================================
+
+program
+  .command("leet [runDir]")
+  .description("Spawn wandb leet directly in a tmux pane (simple mode)")
+  .option("--capture", "Capture and print the leet output after 3 seconds")
+  .action(async (runDir?: string, options?: { capture?: boolean }) => {
+    const { detectTerminal, spawnLeetPane, captureLeetPane } = await import("./terminal");
+    const env = detectTerminal();
+
+    if (!env.inTmux) {
+      console.error("Error: leet requires tmux. Please run inside a tmux session.");
+      process.exit(1);
+    }
+
+    const targetDir = runDir || "./wandb/latest-run";
+    console.log(`Spawning wandb leet for: ${targetDir}`);
+
+    const paneId = await spawnLeetPane({ runDir: targetDir });
+    if (paneId) {
+      console.log(`Leet spawned in pane: ${paneId}`);
+
+      if (options?.capture) {
+        // Wait for leet to render, then capture
+        console.log("Waiting for leet to render...");
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const output = await captureLeetPane();
+        if (output) {
+          console.log("\n--- Leet Output ---");
+          console.log(output);
+        }
+      }
+    } else {
+      console.error("Failed to spawn leet pane. Is wandb installed?");
+      process.exit(1);
+    }
+  });
+
+program
+  .command("leet-capture")
+  .description("Capture the current leet pane output")
+  .action(async () => {
+    const { captureLeetPane, getLeetPaneId } = await import("./terminal");
+
+    const paneId = await getLeetPaneId();
+    if (!paneId) {
+      console.error("No leet pane found. Run 'leet' first to spawn one.");
+      process.exit(1);
+    }
+
+    const output = await captureLeetPane();
+    if (output) {
+      console.log(output);
+    } else {
+      console.error("Failed to capture leet output");
+      process.exit(1);
+    }
+  });
+
+program
+  .command("leet-keys <keys>")
+  .description("Send keys directly to the leet pane")
+  .action(async (keys: string) => {
+    const { sendKeysToLeet, getLeetPaneId } = await import("./terminal");
+
+    const paneId = await getLeetPaneId();
+    if (!paneId) {
+      console.error("No leet pane found. Run 'leet' first to spawn one.");
+      process.exit(1);
+    }
+
+    const success = await sendKeysToLeet(keys);
+    if (success) {
+      console.log(`Sent keys: ${keys}`);
+    } else {
+      console.error("Failed to send keys");
+      process.exit(1);
+    }
+  });
+
+program
+  .command("leet-kill")
+  .description("Kill the leet pane")
+  .action(async () => {
+    const { killLeetPane } = await import("./terminal");
+    const success = await killLeetPane();
+    console.log(success ? "Leet pane killed" : "No leet pane to kill");
+  });
+
 program.parse();

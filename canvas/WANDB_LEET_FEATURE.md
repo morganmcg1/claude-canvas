@@ -2,6 +2,49 @@
 
 A Claude Code Canvas that wraps [wandb Leet](https://github.com/wandb/wandb/pull/10764) to display live and historic W&B runs with beautiful braille visualizations.
 
+## Quick Start (Recommended)
+
+The simplest way to visualize W&B runs is using the direct `leet` commands:
+
+```bash
+# Must be in tmux first
+tmux
+
+# Navigate to your project
+cd /path/to/your/project
+
+# Spawn leet for the latest run (opens in right pane)
+bun run canvas/src/cli.ts leet ./wandb/latest-run
+
+# Or with auto-capture (spawns + captures output after 3 seconds)
+bun run canvas/src/cli.ts leet ./wandb/latest-run --capture
+
+# Capture current leet output at any time
+bun run canvas/src/cli.ts leet-capture
+
+# Send navigation keys to leet
+bun run canvas/src/cli.ts leet-keys Tab
+bun run canvas/src/cli.ts leet-keys Up
+bun run canvas/src/cli.ts leet-keys Down
+
+# Kill the leet pane when done
+bun run canvas/src/cli.ts leet-kill
+```
+
+### For Claude Code Users
+
+When Claude needs to visualize a W&B run, it should:
+
+1. Spawn leet: `bun run canvas/src/cli.ts leet /path/to/wandb/run`
+2. Wait ~3 seconds for rendering
+3. Capture output: `bun run canvas/src/cli.ts leet-capture`
+4. Parse the terminal output to understand metrics
+5. Use `leet-keys` to navigate if needed
+
+This approach is simpler and more reliable than the full canvas UI.
+
+---
+
 ## Overview
 
 This feature enables Claude to:
@@ -10,7 +53,7 @@ This feature enables Claude to:
 3. **Navigate** through runs and metrics by sending keystrokes
 4. **Monitor** live training runs in real-time
 
-## Architecture
+## Architecture (Advanced Mode)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -82,7 +125,31 @@ bun install
 
 ## Usage
 
-### Starting the Canvas
+### Simple Mode (Recommended)
+
+Use the direct `leet` commands for the most reliable experience:
+
+```bash
+cd canvas
+
+# Spawn leet in a tmux pane
+bun run src/cli.ts leet ../wandb/latest-run
+
+# Capture output
+bun run src/cli.ts leet-capture
+
+# Send keys
+bun run src/cli.ts leet-keys Tab
+
+# Kill pane
+bun run src/cli.ts leet-kill
+```
+
+### Advanced Mode: Full Canvas UI (WIP)
+
+> **Note**: The full canvas mode has known IPC issues. Use Simple Mode above for reliability.
+
+The full canvas spawns a React/Ink TUI alongside leet:
 
 ```bash
 # Spawn W&B canvas monitoring a run directory
@@ -92,16 +159,23 @@ bun run src/cli.ts spawn wandb --config '{"runDir": "./wandb/run-xxx"}'
 bun run src/cli.ts spawn wandb --config '{"runDir": "./wandb/run-xxx", "refreshInterval": 1000}'
 ```
 
+**Known Issues with Advanced Mode:**
+- IPC socket connection failures (ENOENT errors)
+- Canvas spawns a pane that spawns another pane (complexity)
+- The canvas TUI is a client looking for a controller that doesn't exist in standalone mode
+
 ### CLI Commands
 
 ```bash
-# Get current view state (what Claude sees)
-bun run src/cli.ts wandb-viewstate <canvas-id>
+# Simple mode (recommended)
+bun run src/cli.ts leet <run-dir>         # Spawn leet directly
+bun run src/cli.ts leet-capture           # Capture leet output
+bun run src/cli.ts leet-keys <keys>       # Send keys to leet
+bun run src/cli.ts leet-kill              # Kill leet pane
 
-# Send navigation keys to Leet
-bun run src/cli.ts wandb-sendkeys <canvas-id> "Tab"
-bun run src/cli.ts wandb-sendkeys <canvas-id> "Up"
-bun run src/cli.ts wandb-sendkeys <canvas-id> "Down"
+# Advanced mode (WIP - may have issues)
+bun run src/cli.ts wandb-viewstate <canvas-id>     # Get view state
+bun run src/cli.ts wandb-sendkeys <canvas-id> "Tab"  # Send keys
 ```
 
 ### Leet Keyboard Shortcuts

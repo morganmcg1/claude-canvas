@@ -13,6 +13,7 @@ Canvas provides spawnable terminal displays (calendars, documents, flight bookin
 | `calendar` | Display events, pick meeting times |
 | `document` | View/edit markdown documents |
 | `flight` | Compare flights and select seats |
+| `wandb` | Visualize W&B runs with wandb leet |
 
 ## Installation
 
@@ -36,7 +37,15 @@ bun run src/cli.ts spawn calendar --scenario meeting-picker --config '{"calendar
 
 # Spawn document editor
 bun run src/cli.ts spawn document --scenario edit --config '{"content": "# Hello"}'
+
+# W&B Leet visualization (simple mode - recommended)
+bun run src/cli.ts leet ./wandb/latest-run        # Spawn leet in tmux pane
+bun run src/cli.ts leet-capture                    # Capture current output
+bun run src/cli.ts leet-keys Tab                   # Send navigation keys
+bun run src/cli.ts leet-kill                       # Kill pane
 ```
+
+See [WANDB_LEET_FEATURE.md](./WANDB_LEET_FEATURE.md) for detailed W&B integration docs.
 
 ## Commands
 
